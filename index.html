@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Watchlist</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header>
+        <h1>Movie Finder</h1>
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Enter a movie name...">
+            <button id="search-btn">Search</button>
+        </div>
+
+        <div class="controls">
+            <select id="filter-type">
+                <option value="all">All Types</option>
+                <option value="movie">Movies</option>
+                <option value="tv_series">TV Series</option>
+            </select>
+
+            <select id="sort-options">
+                <option value="default">Sort By...</option>
+                <option value="az">Title (A-Z)</option>
+                <option value="year-desc">Year (Newest)</option>
+                <option value="year-asc">Year (Oldest)</option>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <p id="loading-message" style="display: none;">Fetching movies... please wait!</p>
+
+        <h2>Search Results</h2>
+        <div id="movie-container"></div>
+
+        <hr>
+
+        <h2>My Watchlist</h2>
+        <div id="watchlist-container"></div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
