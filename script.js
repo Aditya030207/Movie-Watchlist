@@ -1,121 +1,137 @@
+const API_KEY = "cOihK1K4YTpS5akJAzT51X8HelyCbZ07tDte19aG";
+let allFetchedMovies = [];
+let watchlist = JSON.parse(localStorage.getItem("myWatchlist")) || [];
+
 const searchInput = document.getElementById("search-input");
 const searchBtn = document.getElementById("search-btn");
 const movieContainer = document.getElementById("movie-container");
 const watchlistContainer = document.getElementById("watchlist-container");
+const loadingContainer = document.getElementById("loading-container");
 const loadingMessage = document.getElementById("loading-message");
+const errorMessage = document.getElementById("error-message");
 const filterType = document.getElementById("filter-type");
 const sortOptions = document.getElementById("sort-options");
 
-const API_KEY = "cOihK1K4YTpS5akJAzT51X8HelyCbZ07tDte19aG";
-
-let allFetchedMovies = [];
-let watchlist = JSON.parse(localStorage.getItem("myWatchlist")) || [];
-
 renderWatchlist();
 
-searchBtn.addEventListener("click", async function () {
+searchBtn.addEventListener("click", handleSearch);
+filterType.addEventListener("change", applyFiltersAndSort);
+sortOptions.addEventListener("change", applyFiltersAndSort);
+
+searchInput.addEventListener("keypress", function (e) {
+    if (e.key === "Enter") {
+        handleSearch();
+    }
+});
+
+async function handleSearch() {
     const movieName = searchInput.value.trim();
 
-    if (movieName === "") {
-        alert("Please enter a movie name!");
+    if (!movieName) {
+        showError("Please enter a movie name to search!");
         return;
     }
 
-    loadingMessage.textContent = "Searching for movies...";
-    loadingMessage.style.display = "block";
+    hideError();
+    showLoading("Searching for movies...");
     movieContainer.innerHTML = "";
-
-    const searchUrl = `https://api.watchmode.com/v1/search/?apiKey=${API_KEY}&search_field=name&search_value=${encodeURIComponent(movieName)}`;
-
+    
     try {
+        const searchUrl = `https://api.watchmode.com/v1/search/?apiKey=${API_KEY}&search_field=name&search_value=${encodeURIComponent(movieName)}`;
         const response = await fetch(searchUrl);
-        if (!response.ok) throw new Error("Search failed: " + response.status);
         
+        if (!response.ok) {
+            throw new Error(`Failed to safely fetch data (Status Code: ${response.status})`);
+        }
+
         const data = await response.json();
         const results = data.title_results || [];
 
         if (results.length === 0) {
-            loadingMessage.style.display = "none";
-            movieContainer.innerHTML = `<p class="empty-msg">No titles found for "${movieName}".</p>`;
+            hideLoading();
+            renderEmptyState(movieContainer, `No movies found matching "${movieName}".`);
             return;
         }
 
-        loadingMessage.textContent = `Found ${results.length} titles. Fetching posters...`;
-
-        // Limit to top 12 results to save API credits and improve performance
+        showLoading(`Found ${results.length} titles. Loading details...`);
+        
         const limitedResults = results.slice(0, 12);
-
-        // Fetch details for each movie to get the poster URL
-        const detailedMovies = await Promise.all(
-            limitedResults.map(async (movie) => {
-                try {
-                    const detailsUrl = `https://api.watchmode.com/v1/title/${movie.id}/details/?apiKey=${API_KEY}`;
-                    const detailsRes = await fetch(detailsUrl);
-                    if (!detailsRes.ok) return { ...movie, poster: null };
-                    
-                    const detailsData = await detailsRes.json();
-                    return {
-                        ...movie,
-                        poster: detailsData.poster,
-                        rating: detailsData.user_rating,
-                        plot: detailsData.plot_overview
-                    };
-                } catch (e) {
-                    return { ...movie, poster: null };
-                }
-            })
-        );
-
-        allFetchedMovies = detailedMovies;
-        loadingMessage.style.display = "none";
+        await fetchMovieDetails(limitedResults);
+        
+        hideLoading();
         applyFiltersAndSort();
     } catch (error) {
-        loadingMessage.style.display = "none";
-        movieContainer.innerHTML = `<p style="color: #ef4444;">Error: ${error.message}</p>`;
+        hideLoading();
+        showError(`Error: ${error.message}. Please try again later.`);
     }
-});
+}
 
-filterType.addEventListener("change", applyFiltersAndSort);
-sortOptions.addEventListener("change", applyFiltersAndSort);
+async function fetchMovieDetails(movies) {
+    const detailedPromises = movies.map(async (movie) => {
+        try {
+            const detailsUrl = `https://api.watchmode.com/v1/title/${movie.id}/details/?apiKey=${API_KEY}`;
+            const detailsRes = await fetch(detailsUrl);
+            
+            if (!detailsRes.ok) return { ...movie, poster: null };
+
+            const detailsData = await detailsRes.json();
+            return {
+                ...movie,
+                poster: detailsData.poster,
+                rating: detailsData.user_rating,
+                plot: detailsData.plot_overview
+            };
+        } catch (error) {
+            return { ...movie, poster: null };
+        }
+    });
+
+    allFetchedMovies = await Promise.all(detailedPromises);
+}
 
 function applyFiltersAndSort() {
-    let filtered = [...allFetchedMovies];
+    if (allFetchedMovies.length === 0) return;
 
-    if (filterType.value !== "all") {
-        filtered = filtered.filter(movie => movie.type === filterType.value);
+    let filteredMovies = [...allFetchedMovies];
+    const selectedFilter = filterType.value;
+    const selectedSort = sortOptions.value;
+
+    if (selectedFilter !== "all") {
+        filteredMovies = filteredMovies.filter(movie => movie.type === selectedFilter);
     }
 
-    if (sortOptions.value === "az") {
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortOptions.value === "year-desc") {
-        filtered.sort((a, b) => (b.year || 0) - (a.year || 0));
-    } else if (sortOptions.value === "year-asc") {
-        filtered.sort((a, b) => (a.year || 9999) - (b.year || 9999));
+    if (selectedSort === "az") {
+        filteredMovies.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (selectedSort === "year-desc") {
+        filteredMovies.sort((a, b) => (b.year || 0) - (a.year || 0));
+    } else if (selectedSort === "year-asc") {
+        filteredMovies.sort((a, b) => (a.year || 9999) - (b.year || 9999));
     }
 
-    renderMovies(filtered, movieContainer, false);
+    renderMovies(filteredMovies, movieContainer, false);
 }
 
 function renderMovies(movies, container, isWatchlist) {
     if (movies.length === 0) {
-        container.innerHTML = `<p class="empty-msg">${isWatchlist ? "Your watchlist is empty." : "No movies found. Try another search!"}</p>`;
+        const message = isWatchlist ? "Your watchlist is empty." : "No movies found matching your current filter.";
+        renderEmptyState(container, message);
         return;
     }
 
     container.innerHTML = movies.map(movie => {
         const imageUrl = movie.poster || "https://via.placeholder.com/220x320?text=No+Poster";
-        const inWatchlist = watchlist.find(item => item.id === movie.id);
+        const inWatchlist = watchlist.some(item => item.id === movie.id);
 
         return `
             <div class="movie-card">
-                <img src="${imageUrl}" alt="${movie.name}">
-                <h3>${movie.name}</h3>
-                <p>Year: ${movie.year || 'N/A'}</p>
-                <p>Type: ${movie.type || 'Movie'}</p>
+                <img src="${imageUrl}" alt="${movie.name || "Movie Poster"}" onerror="this.src='https://via.placeholder.com/220x320?text=No+Poster'">
+                <h3 title="${movie.name || "Unknown Title"}">${movie.name || "Unknown Title"}</h3>
+                <p><strong>Year:</strong> ${movie.year || 'N/A'}</p>
+                <p><strong>Type:</strong> ${formatType(movie.type)}</p>
                 <button 
                     class="watchlist-btn ${inWatchlist ? 'remove-btn' : 'add-btn'}" 
                     onclick="toggleWatchlist(${movie.id})">
-                    ${inWatchlist ? 'Remove' : 'Add to Watchlist'}
+                    ${inWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
                 </button>
             </div>
         `;
@@ -123,10 +139,10 @@ function renderMovies(movies, container, isWatchlist) {
 }
 
 window.toggleWatchlist = function (id) {
-    const movieInWatchlist = watchlist.find(m => m.id === id);
+    const existingIndex = watchlist.findIndex(m => m.id === id);
 
-    if (movieInWatchlist) {
-        watchlist = watchlist.filter(m => m.id !== id);
+    if (existingIndex !== -1) {
+        watchlist.splice(existingIndex, 1);
     } else {
         const movieToAdd = allFetchedMovies.find(m => m.id === id);
         if (movieToAdd) {
@@ -134,12 +150,47 @@ window.toggleWatchlist = function (id) {
         }
     }
 
-    localStorage.setItem("myWatchlist", JSON.stringify(watchlist));
+    saveWatchlist();
     renderWatchlist();
-    // We don't need to re-apply filters if we just toggled, but it helps update the UI state
-    if (allFetchedMovies.length > 0) applyFiltersAndSort();
+    
+    if (allFetchedMovies.length > 0) {
+        applyFiltersAndSort();
+    }
 };
 
 function renderWatchlist() {
     renderMovies(watchlist, watchlistContainer, true);
+}
+
+function saveWatchlist() {
+    localStorage.setItem("myWatchlist", JSON.stringify(watchlist));
+}
+
+function showLoading(message) {
+    loadingMessage.textContent = message;
+    loadingContainer.style.display = "flex";
+}
+
+function hideLoading() {
+    loadingContainer.style.display = "none";
+}
+
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = "block";
+}
+
+function hideError() {
+    errorMessage.style.display = "none";
+}
+
+function renderEmptyState(container, message) {
+    container.innerHTML = `<p class="empty-msg">${message}</p>`;
+}
+
+function formatType(type) {
+    if (!type) return "Unknown";
+    if (type === "tv_series") return "TV Series";
+    if (type === "movie") return "Movie";
+    return type.charAt(0).toUpperCase() + type.slice(1);
 }

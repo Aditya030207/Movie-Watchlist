@@ -12,18 +12,18 @@
     <header>
         <h1>Movie Finder</h1>
         <div class="search-box">
-            <input type="text" id="search-input" placeholder="Enter a movie name...">
+            <input type="text" id="search-input" placeholder="Enter a movie name..." aria-label="Search movies">
             <button id="search-btn">Search</button>
         </div>
 
         <div class="controls">
-            <select id="filter-type">
+            <select id="filter-type" aria-label="Filter by type">
                 <option value="all">All Types</option>
                 <option value="movie">Movies</option>
                 <option value="tv_series">TV Series</option>
             </select>
 
-            <select id="sort-options">
+            <select id="sort-options" aria-label="Sort options">
                 <option value="default">Sort By...</option>
                 <option value="az">Title (A-Z)</option>
                 <option value="year-desc">Year (Newest)</option>
@@ -33,12 +33,19 @@
     </header>
 
     <main>
-        <p id="loading-message" style="display: none;">Fetching movies... please wait!</p>
+        <div id="loading-container" style="display: none;">
+            <div class="spinner"></div>
+            <p id="loading-message">Fetching movies... please wait!</p>
+        </div>
+
+        <div id="error-message" style="display: none;"></div>
 
         <h2>Search Results</h2>
-        <div id="movie-container"></div>
+        <div id="movie-container">
+            <p class="empty-msg">Type a movie name above to start searching!</p>
+        </div>
 
-        <hr>
+        <hr class="divider">
 
         <h2>My Watchlist</h2>
         <div id="watchlist-container"></div>
