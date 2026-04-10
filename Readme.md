@@ -4,40 +4,33 @@ Movie Watchlist Project is a web application made using HTML, CSS, and JavaScrip
 
 ## Project Description
 
-This project is based on the idea of creating a simple movie search and watchlist website. Users can search for movies, view details like title, poster, year, and rating, and add or remove movies from their watchlist.
+This project is a simple movie search and watchlist application. Users can search for movies, view details like title, poster, year, and rating, and add or remove movies from their watchlist.
 
-The project is made to practice JavaScript concepts, API integration, and UI design.
+The project demonstrates API integration, use of JavaScript array methods, and building a responsive user interface.
 
 ## API Used
 
 This project uses the Watchmode API.
 
-Base URL:
+Base URL:  
 `https://api.watchmode.com/v1/`
 
-## Features (Milestone 3)
+Note: An API key is required to access the API.
+
+## Features
 
 - Fetch movie data from the API using `fetch()`
 - Display movie cards dynamically on the page
-
-### Core Features
-
-- **Search:** Search movies by title  
-- **Sorting:** Sort movies by title or year  
-- **Filtering:** Filter results based on type (movie/series if available)  
-
-### Interactivity
-
-- Add movies to watchlist  
-- Remove movies from watchlist  
-- Save watchlist using localStorage  
-
-### UI/UX
-
-- Show loading message while data is being fetched  
-- Show message when no movies are found  
-- Show message when watchlist is empty  
-- Responsive design for different screen sizes  
+- Search movies by title
+- Filter movies based on type (movie/series if available)
+- Sort movies by title and year
+- Add movies to watchlist
+- Remove movies from watchlist
+- Save watchlist using localStorage
+- Show loading indicator while fetching data
+- Show message when no results are found
+- Show message when watchlist is empty
+- Responsive design for different screen sizes
 
 ## Technologies Used
 
@@ -49,13 +42,6 @@ Base URL:
 ## Project Structure
 
 - `index.html` – main HTML file  
-- `style.css` – styling for the website  
-- `script.js` – JavaScript logic for fetching data and features  
-- `README.md` – project information  
-
-## Future Improvements
-
-Some extra features that can be added later:
-- dark mode  
-- random movie picker  
-- better UI design  
+- `style.css` – styling  
+- `script.js` – functionality and API logic  
+- `README.md` – project documentation  

@@ -1,196 +1,192 @@
-const API_KEY = "cOihK1K4YTpS5akJAzT51X8HelyCbZ07tDte19aG";
-let allFetchedMovies = [];
-let watchlist = JSON.parse(localStorage.getItem("myWatchlist")) || [];
+const API_CODE = "cOihK1K4YTpS5akJAzT51X8HelyCbZ07tDte19aG";
+let recentSearchData = [];
+let userWatchlist = [];
 
-const searchInput = document.getElementById("search-input");
-const searchBtn = document.getElementById("search-btn");
-const movieContainer = document.getElementById("movie-container");
-const watchlistContainer = document.getElementById("watchlist-container");
-const loadingContainer = document.getElementById("loading-container");
-const loadingMessage = document.getElementById("loading-message");
-const errorMessage = document.getElementById("error-message");
-const filterType = document.getElementById("filter-type");
-const sortOptions = document.getElementById("sort-options");
+const searchInputBox = document.getElementById("movie-searchbox");
+const startSearchBtn = document.getElementById("find-btn");
+const displayResults = document.getElementById("results-area");
+const displayWatchlist = document.getElementById("saved-movies-area");
+const loaderSection = document.getElementById("loader-div");
+const processingText = document.getElementById("loader-text");
+const alertBox = document.getElementById("error-alert");
+const typeSelect = document.getElementById("category-dropdown");
+const orderSelect = document.getElementById("sorting-dropdown");
 
-renderWatchlist();
-
-searchBtn.addEventListener("click", handleSearch);
-filterType.addEventListener("change", applyFiltersAndSort);
-sortOptions.addEventListener("change", applyFiltersAndSort);
-
-searchInput.addEventListener("keypress", function (e) {
-    if (e.key === "Enter") {
-        handleSearch();
+function setupPage() {
+    const saved = localStorage.getItem("my_saved_movies");
+    if (saved) {
+        try {
+            userWatchlist = JSON.parse(saved);
+        } catch (err) {
+            userWatchlist = [];
+        }
     }
-});
+    showWatchlist();
 
-async function handleSearch() {
-    const movieName = searchInput.value.trim();
+    startSearchBtn.addEventListener("click", runSearch);
+    typeSelect.addEventListener("change", updateListDisplay);
+    orderSelect.addEventListener("change", updateListDisplay);
 
-    if (!movieName) {
-        showError("Please enter a movie name to search!");
+    searchInputBox.addEventListener("keypress", function (evt) {
+        if (evt.key === "Enter") {
+            runSearch();
+        }
+    });
+}
+
+async function runSearch() {
+    const query = searchInputBox.value.trim();
+
+    if (!query) {
+        showProblem("Please type a movie name first!");
         return;
     }
 
-    hideError();
-    showLoading("Searching for movies...");
-    movieContainer.innerHTML = "";
+    alertBox.style.display = "none";
+    processingText.textContent = "Fetching movies...";
+    loaderSection.style.display = "flex";
+    displayResults.innerHTML = "";
     
     try {
-        const searchUrl = `https://api.watchmode.com/v1/search/?apiKey=${API_KEY}&search_field=name&search_value=${encodeURIComponent(movieName)}`;
-        const response = await fetch(searchUrl);
+        const fetchUrl = `https://api.watchmode.com/v1/search/?apiKey=${API_CODE}&search_field=name&search_value=${encodeURIComponent(query)}`;
+        const result = await fetch(fetchUrl);
         
-        if (!response.ok) {
-            throw new Error(`Failed to safely fetch data (Status Code: ${response.status})`);
+        if (!result.ok) {
+            throw new Error("Bad response from server");
         }
 
-        const data = await response.json();
-        const results = data.title_results || [];
+        const jsonData = await result.json();
+        const rawItems = jsonData.title_results || [];
 
-        if (results.length === 0) {
-            hideLoading();
-            renderEmptyState(movieContainer, `No movies found matching "${movieName}".`);
+        if (rawItems.length === 0) {
+            loaderSection.style.display = "none";
+            displayResults.innerHTML = `<p class="no-data-text">Could not find any movies for "${query}".</p>`;
             return;
         }
 
-        showLoading(`Found ${results.length} titles. Loading details...`);
+        processingText.textContent = "Loading movie info...";
+        const maxResults = rawItems.slice(0, 10);
+        await getExtraDetails(maxResults);
         
-        const limitedResults = results.slice(0, 12);
-        await fetchMovieDetails(limitedResults);
-        
-        hideLoading();
-        applyFiltersAndSort();
-    } catch (error) {
-        hideLoading();
-        showError(`Error: ${error.message}. Please try again later.`);
+        loaderSection.style.display = "none";
+        updateListDisplay();
+    } catch (e) {
+        loaderSection.style.display = "none";
+        showProblem("Something went wrong while searching. Try again later.");
     }
 }
 
-async function fetchMovieDetails(movies) {
-    const detailedPromises = movies.map(async (movie) => {
+async function getExtraDetails(moviesList) {
+    const fetchPromises = moviesList.map(async (movie) => {
         try {
-            const detailsUrl = `https://api.watchmode.com/v1/title/${movie.id}/details/?apiKey=${API_KEY}`;
-            const detailsRes = await fetch(detailsUrl);
+            const url = `https://api.watchmode.com/v1/title/${movie.id}/details/?apiKey=${API_CODE}`;
+            const res = await fetch(url);
             
-            if (!detailsRes.ok) return { ...movie, poster: null };
+            if (!res.ok) {
+                return { ...movie, poster: null };
+            }
 
-            const detailsData = await detailsRes.json();
+            const info = await res.json();
             return {
                 ...movie,
-                poster: detailsData.poster,
-                rating: detailsData.user_rating,
-                plot: detailsData.plot_overview
+                poster: info.poster,
+                year: info.year
             };
-        } catch (error) {
+        } catch (err) {
             return { ...movie, poster: null };
         }
     });
 
-    allFetchedMovies = await Promise.all(detailedPromises);
+    recentSearchData = await Promise.all(fetchPromises);
 }
 
-function applyFiltersAndSort() {
-    if (allFetchedMovies.length === 0) return;
+function updateListDisplay() {
+    if (recentSearchData.length === 0) return;
 
-    let filteredMovies = [...allFetchedMovies];
-    const selectedFilter = filterType.value;
-    const selectedSort = sortOptions.value;
+    let itemsToShow = [...recentSearchData];
+    const chosenType = typeSelect.value;
+    const chosenOrder = orderSelect.value;
 
-    if (selectedFilter !== "all") {
-        filteredMovies = filteredMovies.filter(movie => movie.type === selectedFilter);
+    if (chosenType !== "all") {
+        itemsToShow = itemsToShow.filter(m => m.type === chosenType);
     }
 
-    if (selectedSort === "az") {
-        filteredMovies.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    } else if (selectedSort === "year-desc") {
-        filteredMovies.sort((a, b) => (b.year || 0) - (a.year || 0));
-    } else if (selectedSort === "year-asc") {
-        filteredMovies.sort((a, b) => (a.year || 9999) - (b.year || 9999));
+    if (chosenOrder === "az") {
+        itemsToShow.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (chosenOrder === "newest") {
+        itemsToShow.sort((a, b) => (b.year || 0) - (a.year || 0));
+    } else if (chosenOrder === "oldest") {
+        itemsToShow.sort((a, b) => (a.year || 9999) - (b.year || 9999));
     }
 
-    renderMovies(filteredMovies, movieContainer, false);
+    drawCards(itemsToShow, displayResults, false);
 }
 
-function renderMovies(movies, container, isWatchlist) {
-    if (movies.length === 0) {
-        const message = isWatchlist ? "Your watchlist is empty." : "No movies found matching your current filter.";
-        renderEmptyState(container, message);
+function drawCards(movieArray, gridDiv, isItWatchlist) {
+    if (movieArray.length === 0) {
+        const text = isItWatchlist ? "Your watchlist is empty right now." : "No movies match that filter.";
+        gridDiv.innerHTML = `<p class="no-data-text">${text}</p>`;
         return;
     }
 
-    container.innerHTML = movies.map(movie => {
-        const imageUrl = movie.poster || "https://via.placeholder.com/220x320?text=No+Poster";
-        const inWatchlist = watchlist.some(item => item.id === movie.id);
+    let allHtml = "";
+    for (let i = 0; i < movieArray.length; i++) {
+        const currentMovie = movieArray[i];
+        const imgSource = currentMovie.poster || "https://via.placeholder.com/220x320?text=No+Cover";
+        const alreadyAdded = userWatchlist.some(m => m.id === currentMovie.id);
+        const buttonClass = alreadyAdded ? "btn-remove" : "btn-add";
+        const buttonText = alreadyAdded ? "Remove" : "Add to List";
 
-        return `
-            <div class="movie-card">
-                <img src="${imageUrl}" alt="${movie.name || "Movie Poster"}" onerror="this.src='https://via.placeholder.com/220x320?text=No+Poster'">
-                <h3 title="${movie.name || "Unknown Title"}">${movie.name || "Unknown Title"}</h3>
-                <p><strong>Year:</strong> ${movie.year || 'N/A'}</p>
-                <p><strong>Type:</strong> ${formatType(movie.type)}</p>
-                <button 
-                    class="watchlist-btn ${inWatchlist ? 'remove-btn' : 'add-btn'}" 
-                    onclick="toggleWatchlist(${movie.id})">
-                    ${inWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+        allHtml += `
+            <div class="card-item">
+                <img src="${imgSource}" alt="${currentMovie.name || "Cover"}" onerror="this.src='https://via.placeholder.com/220x320?text=No+Cover'">
+                <h3>${currentMovie.name || "Title missing"}</h3>
+                <p>Year: ${currentMovie.year || "Unknown"}</p>
+                <p>Type: ${fixTypeString(currentMovie.type)}</p>
+                <button class="${buttonClass}" onclick="modifyWatchlist(${currentMovie.id})">
+                    ${buttonText}
                 </button>
             </div>
         `;
-    }).join("");
+    }
+
+    gridDiv.innerHTML = allHtml;
 }
 
-window.toggleWatchlist = function (id) {
-    const existingIndex = watchlist.findIndex(m => m.id === id);
+window.modifyWatchlist = function (movieId) {
+    const pos = userWatchlist.findIndex(m => m.id === movieId);
 
-    if (existingIndex !== -1) {
-        watchlist.splice(existingIndex, 1);
+    if (pos !== -1) {
+        userWatchlist.splice(pos, 1);
     } else {
-        const movieToAdd = allFetchedMovies.find(m => m.id === id);
-        if (movieToAdd) {
-            watchlist.push(movieToAdd);
+        const found = recentSearchData.find(m => m.id === movieId);
+        if (found) {
+            userWatchlist.push(found);
         }
     }
 
-    saveWatchlist();
-    renderWatchlist();
+    localStorage.setItem("my_saved_movies", JSON.stringify(userWatchlist));
+    showWatchlist();
     
-    if (allFetchedMovies.length > 0) {
-        applyFiltersAndSort();
+    if (recentSearchData.length > 0) {
+        updateListDisplay();
     }
 };
 
-function renderWatchlist() {
-    renderMovies(watchlist, watchlistContainer, true);
+function showWatchlist() {
+    drawCards(userWatchlist, displayWatchlist, true);
 }
 
-function saveWatchlist() {
-    localStorage.setItem("myWatchlist", JSON.stringify(watchlist));
+function showProblem(textMsg) {
+    alertBox.textContent = textMsg;
+    alertBox.style.display = "block";
 }
 
-function showLoading(message) {
-    loadingMessage.textContent = message;
-    loadingContainer.style.display = "flex";
+function fixTypeString(rawType) {
+    if (!rawType) return "Unknown";
+    if (rawType === "tv_series") return "TV Show";
+    if (rawType === "movie") return "Movie";
+    return rawType;
 }
 
-function hideLoading() {
-    loadingContainer.style.display = "none";
-}
-
-function showError(message) {
-    errorMessage.textContent = message;
-    errorMessage.style.display = "block";
-}
-
-function hideError() {
-    errorMessage.style.display = "none";
-}
-
-function renderEmptyState(container, message) {
-    container.innerHTML = `<p class="empty-msg">${message}</p>`;
-}
-
-function formatType(type) {
-    if (!type) return "Unknown";
-    if (type === "tv_series") return "TV Series";
-    if (type === "movie") return "Movie";
-    return type.charAt(0).toUpperCase() + type.slice(1);
-}
+setupPage();
